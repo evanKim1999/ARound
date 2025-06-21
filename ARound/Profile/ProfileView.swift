@@ -98,14 +98,18 @@ struct ProfileView: View {
                             print("\(imageName) tapped")
                             // 원하는 동작을 여기서 실행
                         } label: {
+                            VStack {
                                 Image(imageName)
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width:180, height: 326)
+                                    .frame(width:180, height: 300)
                                     .clipped()
                                     .cornerRadius(16)
                                     .shadow(radius: 4)
-
+                                
+                                Text("Location")
+                                    
+                            }
                         }
                         .buttonStyle(PlainButtonStyle()) // 버튼 효과 제거
                     }
