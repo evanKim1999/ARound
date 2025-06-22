@@ -23,19 +23,20 @@ struct Location: Identifiable {
 struct MapView: View {
     @State private var cameraPosition = MapCameraPosition.region(
         MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780), // 서울
-            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            center: CLLocationCoordinate2D(latitude: 37.5796, longitude: 126.9770), // 서울
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         )
     )
-    
+    @State private var detent: PresentationDetent = .fraction(0.65)  // 초기 크기 65
     @State private var selectedLocation: Location?
+    @State private var selectedIndex = 0
     @State private var searchText = ""
     @State private var locations: [Location] = [ Location(name: "경복궁", coordinate: CLLocationCoordinate2D(latitude: 37.5796, longitude: 126.9770), style: .place),
                                                  Location(name: "남산타워", coordinate: CLLocationCoordinate2D(latitude: 37.5512, longitude: 126.9882), style: .place),
-                                                 Location(name: "Taylor Swift", coordinate: CLLocationCoordinate2D(latitude: 37.5612, longitude: 126.9872), style: .user)]
+                                                 Location(name: "Swift", coordinate: CLLocationCoordinate2D(latitude: 37.5612, longitude: 126.9872), style: .user)]
     
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack (alignment: .top) {
             // 지도
             Map(position: $cameraPosition) {
                 ForEach(locations) { location in
@@ -48,12 +49,21 @@ struct MapView: View {
                 }
             }
             .mapStyle(.standard)
-            .sheet(item: $selectedLocation) { location in
-                BottomSheetView(location: location)
-                    .presentationDetents([.medium, .large])
-                    .presentationBackground(.thickMaterial)
-                    .presentationBackgroundInteraction (.enabled)
-            }
+            //            .sheet(item: $selectedLocation) { location in
+            //                BottomSheetView(location: location, detent: $detent)
+            //                    .presentationDetents([.fraction(0.35), .large], selection: $detent)
+            //                    .presentationDragIndicator(.visible)
+            //                    .presentationBackground(.thickMaterial)
+            //                    .presentationBackgroundInteraction (.enabled)
+            //                    .onDisappear {
+            //                        // ✅ 시트 닫을 때 초기화
+            //                        detent = .fraction(0.35)
+            //                    }
+            LocationPagerSheet(locations: locations, selectedIndex: $selectedIndex)
+            //                    .presentationDetents([.fraction(0.35), .large])
+            //                    .presentationDragIndicator(.visible)
+            //                    .presentationBackground(.clear)
+            //            }
             
             // 플로팅 검색 바
             VStack(alignment: .leading){
@@ -126,14 +136,14 @@ struct MapView: View {
             }
         case .user:
             ZStack(alignment: .bottomTrailing) {
-                    // 말풍선 본체
+                // 말풍선 본체
                 Image("테일러스위프트")
                     .resizable()
                     .scaledToFill()
                     .frame(width: 77, height: 77)
                     .clipShape(SpeechBubbleShape())
                     .shadow(color: .red, radius: 4)
-
+                
                 // 국기
                 Ellipse()
                     .frame(width: 20, height: 20)
@@ -144,25 +154,195 @@ struct MapView: View {
     }
 }
 
+struct LocationPagerSheet: View {
+    let locations: [Location]
+    @Binding var selectedIndex: Int
+    
+    
+    var body: some View {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: -50) {
+                    
+                    Spacer(minLength: UIScreen.main.bounds.width / 2 - 75) // 카드 절반만큼 왼쪽 패딩
+                    
+                    ForEach(locations.indices, id: \.self) { index in
+                        LocationCard(location: locations[index], isSelected: selectedIndex == index)
+                            .scaleEffect(selectedIndex == index ? 1.0 : 0.95)
+                            .zIndex(selectedIndex == index ? 999 : Double(-abs(index - selectedIndex))) // ✅ 수정
+                            .onTapGesture {
+                                withAnimation(.easeInOut) {
+                                    selectedIndex = index
+                                }
+                            }
+                    }
+                    Spacer(minLength: UIScreen.main.bounds.width / 2 - 75) // 카드 절반만큼 오른쪽 패딩
+                }
+        }
+        .offset(y: 500)
+    }
+}
+
+struct LocationCard: View {
+    let location: Location
+    var isSelected: Bool // 선택 여부 외부에서 전달
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Image(location.name)
+                .resizable()
+                .scaledToFill()
+                .frame(width: isSelected ? 140 : 100, height: isSelected ? 140 : 100)
+                .cornerRadius(16)
+                .shadow(
+                    color: .black.opacity(0.2),
+                    radius: isSelected ? 10 : 4,
+                    x: 0,
+                    y: 4
+                )
+        }
+        .padding(isSelected ? 10 : 0) // ✅ 선택 시 그림자 여백 확보
+        .contentShape(Rectangle())     // ✅ 터치 영역 유지
+    }
+}
+
 struct BottomSheetView: View {
     let location: Location
+    let images = ["애플스토어", "경복궁", "테일러스위프트"]
+    
+    @Binding var detent: PresentationDetent
     
     var body: some View {
         VStack(alignment: .leading) {
             Text("\(location.name)")
                 .font(.system(size: 30, weight: .bold))
-                .foregroundColor(.black)
+            
             Text("Cathedral in Myeongdong, Jung-gu, Seoul, South Korea")
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(.gray)
-            Text("Currently Open﹒6:30 am - 7 pm﹒120 m away")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.green)
+            
+            HStack(spacing: 3) {
+                Text("Currently Open")
+                    .foregroundColor(.green)
+                CustomDot()
+                Text("6:30 am - 7 pm")
+                CustomDot()
+                Text("120 m away")
+            }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundColor(.black)
+            
+            Divider()
+                .background(Color.black)
+            
+            
+            Text("Introduction")
+                .font(.system(size: 15, weight: .bold))
+            
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                CustomDot()
+                    .offset(y: -4)
+                    .alignmentGuide(.firstTextBaseline) { d in d[.bottom]}
+                
+                Text("Visited by many tourists for its beautiful Gothic architecture and stained glass windows")
+                    .font(.system(size: 12, weight: .regular))
+                    .fixedSize(horizontal: false, vertical: true) // 줄바꿈 허용
+            }
+            
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                CustomDot()
+                    .offset(y: -4)
+                    .alignmentGuide(.firstTextBaseline) { d in d[.bottom]}
+                Text("Offers a peaceful atmosphere where visitors can experience Korea's religion, history, and culture")
+                    .font(.system(size: 12, weight: .regular))
+                    .fixedSize(horizontal: false, vertical: true) // 줄바꿈 허용
+            }
+            
+            //            Divider()
+            //                .background(Color.black)
+            //
+            //            ScrollView(.horizontal, showsIndicators: false) {
+            //                HStack(spacing: 4) {
+            //                    ForEach(images, id: \.self) { imageName in
+            //                        Button {
+            //                            print("\(imageName) tapped")
+            //                            // 원하는 동작을 여기서 실행
+            //                        } label: {
+            //                            VStack {
+            //                                Image(imageName)
+            //                                    .resizable()
+            //                                    .scaledToFill()
+            //                                    .frame(width:124, height: 176)
+            //                                    .clipped()
+            //                                    .cornerRadius(16)
+            //                                    .shadow(radius: 4)
+            //
+            //                            }
+            //                        }
+            //                        .buttonStyle(PlainButtonStyle()) // 버튼 효과 제거
+            //                    }
+            //                }
+            //            }
+            
+            //            if detent == .large {
+            Divider()
+                .background(Color.black)
+            
+            Text("Visitors Today")
+                .font(.system(size: 15, weight: .bold))
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(images, id: \.self) { imageName in
+                        Button {
+                            print("\(imageName) tapped")
+                            // 원하는 동작을 여기서 실행
+                        } label: {
+                            VStack {
+                                Image(imageName)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width:30, height: 30)
+                                    .clipped()
+                                    .cornerRadius(16)
+                                    .shadow(radius: 4)
+                                
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle()) // 버튼 효과 제거
+                    }
+                }
+            }
+            
+            //            }
         }
+        .foregroundColor(.black)
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading) // ⬅️ 명시적 왼쪽 정렬
         
+        //        if detent != .large {
+        //            Button {
+        //                detent = .large
+        //            } label: {
+        //                Text("View More")
+        //                    .font(.custom("SettlementLabel", size: 12))
+        //                    .frame(width: 80, height: 28.75) // 버튼 크기 고정
+        //                    .background(Color.black)
+        //                    .foregroundColor(.white)
+        //                    .clipShape(Capsule())
+        //            }
+        //        }
+        
         Spacer()
+    }
+    
+}
+
+struct CustomDot: View {
+    var body: some View {
+        Circle()
+            .frame(width: 3, height: 3)
+            .foregroundColor(.black)
+            .offset(y: 2) // 세로 위치 조정
     }
 }
 
